@@ -1,0 +1,133 @@
+================================================================================
+                    SCHOOL SAFAL - DEPLOYMENT GUIDE
+                   Railway + Neon PostgreSQL Database
+================================================================================
+
+STEP 1: CREATE NEON DATABASE
+--------------------------------------------------------------------------------
+1. Go to https://neon.tech and sign up (free tier available)
+2. Click "Create Project"
+3. Name your project (e.g., "school-safal")
+4. Select your region (choose closest to your users)
+5. Click "Create Project"
+6. Once created, go to "Dashboard" and click "Connection Details"
+7. Copy the "Connection string" - it looks like:
+   postgresql://username:password@ep-xxx-yyy.region.aws.neon.tech/neondb?sslmode=require
+   
+   SAVE THIS STRING - you will need it for Railway!
+
+================================================================================
+
+STEP 2: PUSH CODE TO GITHUB
+--------------------------------------------------------------------------------
+1. Create a GitHub account if you don't have one: https://github.com
+2. Create a new repository (e.g., "school-safal")
+3. Upload all these files to your GitHub repository:
+   - server.js
+   - database.js
+   - package.json
+   - Procfile
+   - railway.json
+   - routes/ folder (with all files inside)
+   - public/ folder (with all files inside)
+
+================================================================================
+
+STEP 3: DEPLOY TO RAILWAY
+--------------------------------------------------------------------------------
+1. Go to https://railway.app and sign up (free tier: $5/month credit)
+2. Click "New Project"
+3. Select "Deploy from GitHub repo"
+4. Connect your GitHub account and select your repository
+5. Railway will detect it's a Node.js app automatically
+
+6. ADD ENVIRONMENT VARIABLE:
+   - Click on your deployed service
+   - Go to "Variables" tab
+   - Click "New Variable"
+   - Add:
+     Key: DATABASE_URL
+     Value: (paste your Neon connection string from Step 1)
+   
+7. GENERATE PUBLIC URL:
+   - Go to "Settings" tab
+   - Scroll to "Networking"
+   - Click "Generate Domain"
+   - Your app will be live at: https://your-app.railway.app
+
+================================================================================
+
+STEP 4: FIRST LOGIN
+--------------------------------------------------------------------------------
+1. Open your Railway URL in browser
+2. Login with default admin credentials:
+   Username: admin
+   Password: Admin123
+
+3. IMPORTANT: Change admin password immediately!
+   (You can create a new admin user and delete the default one)
+
+================================================================================
+
+PROJECT FILES INCLUDED
+--------------------------------------------------------------------------------
+/server.js          - Main Express server
+/database.js        - Database connection and schema
+/package.json       - Node.js dependencies
+/Procfile           - Railway deployment command
+/railway.json       - Railway configuration
+/routes/
+  auth.js           - Login/logout APIs
+  questions.js      - Question fetching APIs
+  exam.js           - Exam submission APIs
+  admin.js          - Admin dashboard APIs
+/public/
+  index.html        - Frontend HTML
+  styles.css        - Styling
+  app.js            - Frontend JavaScript
+  logo.png          - School logo
+
+================================================================================
+
+FEATURES
+--------------------------------------------------------------------------------
+ADMIN PANEL:
+- Upload users via CSV (username,displayName,password)
+- Upload questions via CSV (Subject,Question,A,B,C,D,Correct,ImageURL)
+- Set total questions per subject
+- Enable/Disable exam
+- Set active subject for the day
+- View results summary
+- Export results as CSV
+
+STUDENT PANEL:
+- Login with assigned credentials
+- Select class and start exam
+- Timed assessment with countdown
+- Navigate between questions
+- View question images (click to enlarge)
+- Track attended/remaining questions
+- Submit exam
+
+================================================================================
+
+CSV FORMAT FOR QUESTIONS (with image support)
+--------------------------------------------------------------------------------
+Subject,Question,OptionA,OptionB,OptionC,OptionD,CorrectAnswer,ImageURL
+
+Example:
+EVS,What is shown in this image?,Tree,River,Mountain,House,A,https://example.com/tree.jpg
+Mathematics,Calculate 5+3,6,7,8,9,C,
+English,Choose the correct spelling,Recieve,Receive,Recive,Receeve,B,
+
+Note: ImageURL is optional. Leave empty if no image needed.
+
+================================================================================
+
+SUPPORT
+--------------------------------------------------------------------------------
+- Railway Docs: https://docs.railway.app
+- Neon Docs: https://neon.tech/docs
+- For issues, check Railway deployment logs
+
+================================================================================

@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>School Safal</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .header-title { font-family: 'Playfair Display', Georgia, serif; }
+  </style>
+</head>
+<body>
+
+<div class="page-header">
+  <div class="header-content">
+    <img src="logo.png" alt="MVM Logo" class="header-logo">
+    <div class="header-title">School Safal</div>
+  </div>
+</div>
+
+<div class="container">
+
+  <div id="loginPanel" class="card login-card">
+    <h3>Welcome Back!</h3>
+    <p style="text-align: center; color: #666; margin-bottom: 24px;">Please login to continue</p>
+    <form id="login-form">
+      <input id="username" type="text" class="input-field" placeholder="Enter Username" required>
+      <input id="password" type="password" class="input-field" placeholder="Enter Password" required>
+      <div style="margin-top: 20px;">
+        <button type="submit" class="btn btn-primary" style="width:100%;">Login</button>
+      </div>
+      <div id="login-error" class="error-text" style="display: none;"></div>
+    </form>
+  </div>
+
+  <div id="studentPanel" class="hidden card student-card">
+    <div class="welcome-head">
+      <span>School Safal
+        <span class="welcome-user">Welcome: <span id="stuInfo"></span></span>
+      </span>
+      <button type="button" id="studentLogoutBtn" class="student-logout-btn">Logout</button>
+    </div>
+    <div class="panel-body">
+
+      <div id="preExamSection">
+        <div class="intro-box">
+          <strong>Welcome to the Assessment!</strong><br><br>
+          This assessment helps us understand how well students have learnt the concepts taught in class.
+          Please read each question carefully and choose the most appropriate option.
+        </div>
+
+        <div class="button-row" style="justify-content:flex-start; gap:20px; align-items: flex-end;">
+          <div style="flex: 1; max-width: 250px;">
+            <label for="classSelect" style="display: block; margin-bottom: 8px; color: #1b5e20; font-weight: 600;">Select Your Class</label>
+            <select id="classSelect" class="input-field" style="margin: 0;">
+              <option value="">-- Select Class --</option>
+              <option value="V">Class V</option>
+            </select>
+          </div>
+          <div>
+            <button type="button" id="startExamBtn" class="btn btn-primary">Start Assessment</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="examCard" class="hidden exam-main-card">
+        <div class="exam-timer-bar">
+          <div>
+            <div id="classInfoBanner" class="class-chip" style="display:none;"></div>
+            <div id="qHeader" class="question-no"></div>
+            <div class="exam-stats">
+              Answered: <span id="attendedNow">0</span> |
+              Total: <span id="totalNow">0</span> |
+              Remaining: <span id="remainingNow">0</span>
+            </div>
+          </div>
+          <div class="timer-box" id="timerBox">
+            <div class="timer-label">Time Remaining</div>
+            <div id="timerDisplay" class="timer-huge">75:00</div>
+          </div>
+        </div>
+        
+        <div class="question-navigator" id="questionNav">
+          <div class="nav-title">Question Navigator</div>
+          <div class="nav-dots" id="navDots"></div>
+          <div class="nav-legend">
+            <div class="legend-item"><span class="legend-dot green"></span> Answered</div>
+            <div class="legend-item"><span class="legend-dot orange"></span> Skipped</div>
+            <div class="legend-item"><span class="legend-dot gray"></span> Not Visited</div>
+            <div class="legend-item"><span class="legend-dot blue"></span> Current</div>
+            <div class="legend-item"><span class="legend-dot purple"></span> Marked for Review</div>
+          </div>
+        </div>
+        
+        <div id="questionArea"></div>
+        <div class="button-row" style="margin-top: 30px;">
+          <button type="button" id="prevBtn" class="btn btn-light">← Previous</button>
+          <button type="button" id="markReviewBtn" class="btn-mark-review">⚑ Mark for Review</button>
+          <button type="button" id="nextBtn" class="btn btn-primary">Next →</button>
+          <button type="button" id="submitBtn" class="btn btn-danger">End Assessment</button>
+        </div>
+      </div>
+
+      <div id="thankYou" class="hidden thank-you-section">
+        <h3>Thank You!</h3>
+        <p style="font-size: 1.3em; margin-bottom: 25px; color: #2e7d32;">Your Answers have been Recorded.</p>
+        <p style="font-size: 1em; color: #555;">You may now close this window or go back to login.</p>
+        <button type="button" id="backToLoginBtn" class="btn btn-primary" style="margin-top: 20px;">Back to Login</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="adminPanel" class="hidden card admin-panel">
+    <div class="admin-header">
+      <span class="admin-title">Admin Dashboard</span>
+      <button type="button" id="adminLogoutBtn" class="admin-logout-btn">Logout</button>
+    </div>
+    
+    <div class="admin-body">
+      <div class="admin-section">
+        <h4>User Management</h4>
+        <div class="admin-form-group">
+          <label>Upload Users CSV</label>
+          <p class="form-help">Format: username, displayName, password (one per line)</p>
+          <textarea id="userCSV" class="input-field" placeholder="teacher1,Teacher One,pass123
+student1,Student Name,test123"></textarea>
+          <input id="pwPrefix" class="input-field" placeholder="Default Password Prefix (e.g. safal)">
+          <div class="admin-btn-group">
+            <button type="button" id="uploadUsersBtn" class="admin-btn admin-btn-success">
+              <span class="btn-icon">👥</span>
+              <span>Upload Users</span>
+            </button>
+          </div>
+        </div>
+        
+        <div class="admin-form-group" style="margin-top: 20px; padding-top: 15px; border-top: 1px dashed #c8e6c9;">
+          <label>Remove Users</label>
+          <div class="admin-btn-group">
+            <button type="button" id="listUsersBtn" class="admin-btn admin-btn-primary">
+              <span class="btn-icon">📋</span>
+              <span>List Users</span>
+            </button>
+            <button type="button" id="deleteAllStudentsBtn" class="admin-btn admin-btn-danger">
+              <span class="btn-icon">🗑️</span>
+              <span>Delete All Students</span>
+            </button>
+          </div>
+          <div id="userListArea" class="user-list-area"></div>
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <h4>Question Bank</h4>
+        <div class="admin-form-group">
+          <label>Upload Word Document (.docx)</label>
+          <select id="wordSubject" class="input-field">
+            <option value="English">English</option>
+            <option value="Mathematics">Mathematics</option>
+            <option value="EVS">EVS</option>
+          </select>
+          <input type="file" id="wordFileInput" accept=".docx" class="input-field file-input">
+          <p class="form-help">Supports passages, images, math formatting</p>
+          <div class="admin-btn-group">
+            <button type="button" id="uploadWordBtn" class="admin-btn admin-btn-primary">
+              <span class="btn-icon">📄</span>
+              <span>Upload Word</span>
+            </button>
+          </div>
+        </div>
+        
+        <div class="admin-form-group" style="margin-top: 20px;">
+          <label>Import from Google Sheet</label>
+          <input id="googleSheetUrl" class="input-field" placeholder="Paste Google Sheet link here">
+          <div class="admin-btn-group">
+            <button type="button" id="importGoogleSheetBtn" class="admin-btn admin-btn-success">
+              <span class="btn-icon">📊</span>
+              <span>Import Sheet</span>
+            </button>
+          </div>
+        </div>
+        
+        <div class="admin-form-group" style="margin-top: 20px; padding-top: 15px; border-top: 1px dashed #c8e6c9;">
+          <label>Manage Question Bank</label>
+          <div class="admin-btn-group">
+            <button type="button" id="viewQuestionsBtn" class="admin-btn admin-btn-primary">
+              <span class="btn-icon">👁️</span>
+              <span>View Count</span>
+            </button>
+            <button type="button" id="clearQuestionsBtn" class="admin-btn admin-btn-danger">
+              <span class="btn-icon">🗑️</span>
+              <span>Clear All</span>
+            </button>
+          </div>
+          <div id="questionCountArea" class="question-count-area"></div>
+          
+          <div style="margin-top: 15px;">
+            <label>Delete Specific Upload</label>
+            <div style="display: flex; gap: 10px; margin-top: 8px;">
+              <select id="uploadSelect" class="input-field" style="flex: 1;">
+                <option value="">-- Select uploaded file --</option>
+              </select>
+              <button type="button" id="refreshUploadsBtn" class="admin-btn admin-btn-light" style="min-width: auto; min-height: auto; padding: 8px 15px;">
+                <span class="btn-icon">🔄</span>
+              </button>
+              <button type="button" id="deleteUploadBtn" class="admin-btn admin-btn-danger" style="min-width: auto; min-height: auto; padding: 8px 15px;">
+                <span class="btn-icon">🗑️</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <h4>Assessment Settings</h4>
+        <div class="admin-form-group">
+          <label>Questions Per Subject</label>
+          <input id="totalQ" type="number" class="input-field" placeholder="e.g. 50">
+          <div class="admin-btn-group">
+            <button type="button" id="saveTotalQBtn" class="admin-btn admin-btn-warning">
+              <span class="btn-icon">💾</span>
+              <span>Save Count</span>
+            </button>
+          </div>
+        </div>
+        
+        <div class="admin-form-group" style="margin-top: 20px;">
+          <label>Exam Control</label>
+          <div class="admin-btn-group">
+            <button type="button" id="enableExam" class="admin-btn admin-btn-success">
+              <span class="btn-icon">✅</span>
+              <span>Enable Exam</span>
+            </button>
+            <button type="button" id="disableExam" class="admin-btn admin-btn-danger">
+              <span class="btn-icon">🚫</span>
+              <span>Disable Exam</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="admin-form-group" style="margin-top: 20px;">
+          <label>Active Subject</label>
+          <p class="form-help">Students can take exam for the active subject</p>
+          <select id="activeSubject" class="input-field">
+            <option value="English">English</option>
+            <option value="Mathematics">Mathematics</option>
+            <option value="EVS">EVS</option>
+          </select>
+          <div class="admin-btn-group">
+            <button type="button" id="setActiveSubBtn" class="admin-btn admin-btn-primary">
+              <span class="btn-icon">📚</span>
+              <span>Set Subject</span>
+            </button>
+            <button type="button" id="refreshActiveSubBtn" class="admin-btn admin-btn-light">
+              <span class="btn-icon">🔄</span>
+              <span>Check Current</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <h4>Reports & Analytics</h4>
+        <div class="admin-btn-group">
+          <button type="button" id="viewReportBtn" class="admin-btn admin-btn-primary">
+            <span class="btn-icon">📈</span>
+            <span>View Summary</span>
+          </button>
+          <button type="button" id="exportCSVBtn" class="admin-btn admin-btn-success">
+            <span class="btn-icon">📥</span>
+            <span>Export CSV</span>
+          </button>
+        </div>
+        <div id="summaryArea" class="summary-area"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="imageModal" class="modal-overlay" onclick="closeImage()">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <img id="modalImage" src="">
+  </div>
+</div>
+
+<div id="detailModal" class="detail-modal">
+  <div class="detail-modal-content">
+    <div class="detail-modal-header">
+      <h3 id="detailModalTitle">Exam Details</h3>
+      <button class="detail-close-btn" onclick="closeDetailModal()">&times;</button>
+    </div>
+    <div class="detail-modal-body" id="detailModalBody"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

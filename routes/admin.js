@@ -226,10 +226,27 @@ router.post('/upload-word-questions', requireAdmin, async (req, res) => {
       // Skip empty blocks (but keep image-only blocks)
       if (!plainText && !imgMatch) continue;
       
+      // Skip section headers like "Section A", "Section B", "Part I", etc.
+      const isSectionHeader = plainText.match(/^Section\s*[A-Z]/i) ||
+                              plainText.match(/^Part\s*[IVX\d]/i) ||
+                              plainText.toLowerCase().includes('multiple choice') ||
+                              plainText.toLowerCase().includes('answer the following') ||
+                              plainText.toLowerCase().includes('do as directed') ||
+                              plainText.toLowerCase().includes('fill in the blanks') ||
+                              plainText.toLowerCase().includes('choose the correct') ||
+                              plainText.toLowerCase().includes('marks)') ||
+                              plainText.toLowerCase().includes('question paper');
+      
+      if (isSectionHeader && plainText.length < 100) {
+        continue; // Skip section headers
+      }
+      
       // Check for passage headers
       const isPassageHeader = plainText.toLowerCase().includes('read the passage') ||
                              plainText.toLowerCase().includes('read the following') ||
-                             plainText.toLowerCase().includes('read the poem');
+                             plainText.toLowerCase().includes('read the poem') ||
+                             plainText.toLowerCase().includes('read the story') ||
+                             plainText.toLowerCase().includes('read the extract');
       
       if (isPassageHeader) {
         passageCount++;
@@ -253,90 +270,143 @@ router.post('/upload-word-questions', requireAdmin, async (req, res) => {
       });
     }
     
-    // Now find questions by looking for "Answer: X" pattern
-    // Work backwards from each Answer line to find question + 4 options
+    // IMPROVED PARSER: Use numbered questions as delimiters
+    // Format: "1. Question text" or "1) Question text" followed by 4 options, then "Answer: X"
+    
+    // First, find all question start positions (numbered items)
+    let questionStarts = [];
     for (let i = 0; i < contentItems.length; i++) {
-      const item = contentItems[i];
-      const answerMatch = item.text.match(/^Answer\s*:\s*([A-D])/i);
-      
-      if (answerMatch) {
-        const correctAnswer = answerMatch[1].toUpperCase();
+      const text = contentItems[i].text;
+      // Match: 1. or 1) or Q1. or Q1) at start of line
+      if (text.match(/^(?:Q?\s*)?(\d+)[\.\)]\s+.+/i)) {
+        questionStarts.push(i);
+      }
+    }
+    
+    // If no numbered questions found, fall back to Answer-based detection
+    if (questionStarts.length === 0) {
+      // Fallback: Find questions by looking for "Answer: X" pattern
+      for (let i = 0; i < contentItems.length; i++) {
+        const item = contentItems[i];
+        const answerMatch = item.text.match(/^Answer\s*:\s*([A-D])/i);
         
-        // Look backwards to find 4 options and 1 question (minimum 5 items before Answer)
-        // But options might have images on separate lines, so be flexible
-        let optionItems = [];
-        let questionItems = [];
-        let j = i - 1;
-        
-        // Collect items backwards until we have enough for options
-        while (j >= 0 && optionItems.length < 4) {
-          const prevItem = contentItems[j];
-          // Skip section headers and empty-ish items
-          if (prevItem.text.toLowerCase().includes('multiple choice') ||
-              prevItem.text.toLowerCase().includes('answer key') ||
-              prevItem.text.toLowerCase().includes('question paper') ||
-              prevItem.text.toLowerCase().includes('marks:') ||
-              prevItem.text.match(/^[IVX]+\.\s/) ||
-              prevItem.text.match(/^Answer\s*:/i)) {
-            j--;
-            continue;
-          }
-          optionItems.unshift(prevItem);
-          j--;
-        }
-        
-        // If we have at least 4 items, last 4 are options, rest is question
-        if (optionItems.length >= 5) {
-          questionItems = optionItems.slice(0, optionItems.length - 4);
-          optionItems = optionItems.slice(-4);
-        } else if (optionItems.length >= 4) {
-          // Exactly 4 items - need to look further back for question
-          while (j >= 0 && questionItems.length === 0) {
+        if (answerMatch) {
+          const correctAnswer = answerMatch[1].toUpperCase();
+          
+          // Look backwards for 4 options + 1 question
+          let optionItems = [];
+          let questionItems = [];
+          let j = i - 1;
+          
+          while (j >= 0 && optionItems.length < 4) {
             const prevItem = contentItems[j];
-            if (prevItem.text && 
-                !prevItem.text.toLowerCase().includes('multiple choice') &&
-                !prevItem.text.toLowerCase().includes('answer key') &&
-                !prevItem.text.match(/^Answer\s*:/i) &&
-                prevItem.text.length > 10) {
-              questionItems.unshift(prevItem);
-              break;
+            if (prevItem.text.toLowerCase().includes('multiple choice') ||
+                prevItem.text.toLowerCase().includes('answer key') ||
+                prevItem.text.match(/^Answer\s*:/i)) {
+              j--;
+              continue;
             }
+            optionItems.unshift(prevItem);
             j--;
+          }
+          
+          if (optionItems.length >= 5) {
+            questionItems = optionItems.slice(0, optionItems.length - 4);
+            optionItems = optionItems.slice(-4);
+          } else if (optionItems.length >= 4) {
+            while (j >= 0 && questionItems.length === 0) {
+              const prevItem = contentItems[j];
+              if (prevItem.text && prevItem.text.length > 10 && !prevItem.text.match(/^Answer\s*:/i)) {
+                questionItems.unshift(prevItem);
+                break;
+              }
+              j--;
+            }
+          }
+          
+          if (questionItems.length > 0 && optionItems.length >= 4) {
+            let questionText = questionItems.map(q => q.text).join(' ').trim();
+            questionText = questionText.replace(/^\d+[\.\)]\s*/, '').trim();
+            let questionImage = questionItems.find(q => q.image)?.image || '';
+            
+            const optionA = optionItems[0].text.replace(/^[aA][\.\)]\s*/, '').trim();
+            const optionB = optionItems[1].text.replace(/^[bB][\.\)]\s*/, '').trim();
+            const optionC = optionItems[2].text.replace(/^[cC][\.\)]\s*/, '').trim();
+            const optionD = optionItems[3].text.replace(/^[dD][\.\)]\s*/, '').trim();
+            
+            const imageUrl = questionImage || optionItems.find(o => o.image)?.image || '';
+            const passageText = item.passageText || null;
+            const passageId = item.passageId || null;
+            
+            if (questionText && (optionA || optionB)) {
+              await pool.query(
+                `INSERT INTO questions (subject, question_text, option_a, option_b, option_c, option_d, correct_answer, image_url, passage_id, passage_text)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+                [subject, questionText, optionA || '[Image]', optionB || '[Image]', optionC || '[Image]', optionD || '[Image]', correctAnswer, imageUrl, passageId, passageText]
+              );
+              added++;
+            }
+          }
+        }
+      }
+    } else {
+      // NUMBERED QUESTION PARSING
+      // For each numbered question, find content until next question or Answer line
+      for (let q = 0; q < questionStarts.length; q++) {
+        const startIdx = questionStarts[q];
+        const endIdx = (q + 1 < questionStarts.length) ? questionStarts[q + 1] : contentItems.length;
+        
+        // Get all items for this question
+        const qItems = contentItems.slice(startIdx, endIdx);
+        
+        // Find Answer line
+        let answerIdx = -1;
+        let correctAnswer = '';
+        for (let a = 0; a < qItems.length; a++) {
+          const answerMatch = qItems[a].text.match(/^Answer\s*:\s*([A-D])/i);
+          if (answerMatch) {
+            answerIdx = a;
+            correctAnswer = answerMatch[1].toUpperCase();
+            break;
           }
         }
         
-        if (questionItems.length > 0 && optionItems.length >= 4) {
-          // Build question text
-          let questionText = questionItems.map(q => q.text).join(' ').trim();
-          let questionImage = questionItems.find(q => q.image)?.image || '';
-          
-          // Get options
-          const optionA = optionItems[0].text.replace(/^[aA][\.\)]\s*/, '').trim();
-          const optionB = optionItems[1].text.replace(/^[bB][\.\)]\s*/, '').trim();
-          const optionC = optionItems[2].text.replace(/^[cC][\.\)]\s*/, '').trim();
-          const optionD = optionItems[3].text.replace(/^[dD][\.\)]\s*/, '').trim();
-          
-          // Get option images
-          const optionAImg = optionItems[0].image || '';
-          const optionBImg = optionItems[1].image || '';
-          const optionCImg = optionItems[2].image || '';
-          const optionDImg = optionItems[3].image || '';
-          
-          // Use first available image
-          const imageUrl = questionImage || optionAImg || optionBImg || optionCImg || optionDImg;
-          
-          // Get passage info from the answer item
-          const passageText = item.passageText || null;
-          const passageId = item.passageId || null;
-          
-          if (questionText && (optionA || optionB)) {
-            await pool.query(
-              `INSERT INTO questions (subject, question_text, option_a, option_b, option_c, option_d, correct_answer, image_url, passage_id, passage_text)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-              [subject, questionText, optionA || '[Image]', optionB || '[Image]', optionC || '[Image]', optionD || '[Image]', correctAnswer, imageUrl, passageId, passageText]
-            );
-            added++;
-          }
+        if (answerIdx === -1 || answerIdx < 5) continue; // Need at least question + 4 options + answer
+        
+        // First item is the question
+        const questionItem = qItems[0];
+        let questionText = questionItem.text.replace(/^(?:Q?\s*)?\d+[\.\)]\s*/i, '').trim();
+        let questionImage = questionItem.image || '';
+        
+        // Items before Answer line (excluding question) are options
+        // Last 4 items before Answer are the options
+        const optionItems = qItems.slice(Math.max(1, answerIdx - 4), answerIdx);
+        
+        if (optionItems.length < 4) continue;
+        
+        // Take last 4 as options
+        const opts = optionItems.slice(-4);
+        
+        // Clean option text (remove a), b), etc. if present)
+        const optionA = opts[0].text.replace(/^[aA][\.\)]\s*/, '').trim();
+        const optionB = opts[1].text.replace(/^[bB][\.\)]\s*/, '').trim();
+        const optionC = opts[2].text.replace(/^[cC][\.\)]\s*/, '').trim();
+        const optionD = opts[3].text.replace(/^[dD][\.\)]\s*/, '').trim();
+        
+        // Get images
+        const imageUrl = questionImage || opts.find(o => o.image)?.image || '';
+        
+        // Get passage info
+        const passageText = questionItem.passageText || null;
+        const passageId = questionItem.passageId || null;
+        
+        if (questionText && (optionA || optionB)) {
+          await pool.query(
+            `INSERT INTO questions (subject, question_text, option_a, option_b, option_c, option_d, correct_answer, image_url, passage_id, passage_text)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [subject, questionText, optionA || '[Image]', optionB || '[Image]', optionC || '[Image]', optionD || '[Image]', correctAnswer, imageUrl, passageId, passageText]
+          );
+          added++;
         }
       }
     }

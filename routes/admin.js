@@ -962,4 +962,111 @@ router.post('/get-result-details', requireAdmin, async (req, res) => {
   }
 });
 
+router.post('/get-analytics', requireAdmin, async (req, res) => {
+  try {
+    // Get total students (non-admin users)
+    const studentsResult = await pool.query(
+      'SELECT COUNT(*) FROM users WHERE is_admin = FALSE'
+    );
+    const totalStudents = parseInt(studentsResult.rows[0].count) || 0;
+    
+    // Get total exams taken
+    const examsResult = await pool.query('SELECT COUNT(*) FROM grades');
+    const totalExams = parseInt(examsResult.rows[0].count) || 0;
+    
+    // Get average score and pass rate
+    const statsResult = await pool.query(`
+      SELECT 
+        AVG(CAST(percentage AS FLOAT)) as avg_percentage,
+        COUNT(CASE WHEN CAST(percentage AS FLOAT) >= 40 THEN 1 END) as passed,
+        COUNT(*) as total
+      FROM grades
+    `);
+    const avgScore = parseFloat(statsResult.rows[0].avg_percentage) || 0;
+    const passRate = statsResult.rows[0].total > 0 
+      ? (statsResult.rows[0].passed / statsResult.rows[0].total * 100) 
+      : 0;
+    
+    // Get subject-wise performance
+    const subjectResult = await pool.query(`
+      SELECT 
+        subject,
+        AVG(CAST(percentage AS FLOAT)) as avg_percentage,
+        COUNT(*) as count
+      FROM grades
+      GROUP BY subject
+      ORDER BY subject
+    `);
+    
+    const subjectStats = {};
+    subjectResult.rows.forEach(row => {
+      subjectStats[row.subject] = {
+        avgPercentage: parseFloat(row.avg_percentage) || 0,
+        count: parseInt(row.count) || 0
+      };
+    });
+    
+    // Get score distribution
+    const distributionResult = await pool.query(`
+      SELECT 
+        CASE 
+          WHEN CAST(percentage AS FLOAT) <= 20 THEN '0-20'
+          WHEN CAST(percentage AS FLOAT) <= 40 THEN '21-40'
+          WHEN CAST(percentage AS FLOAT) <= 60 THEN '41-60'
+          WHEN CAST(percentage AS FLOAT) <= 80 THEN '61-80'
+          ELSE '81-100'
+        END as range,
+        COUNT(*) as count
+      FROM grades
+      GROUP BY range
+      ORDER BY range
+    `);
+    
+    const distribution = {
+      '0-20': 0,
+      '21-40': 0,
+      '41-60': 0,
+      '61-80': 0,
+      '81-100': 0
+    };
+    distributionResult.rows.forEach(row => {
+      distribution[row.range] = parseInt(row.count) || 0;
+    });
+    
+    // Get top performers
+    const topResult = await pool.query(`
+      SELECT display_name, subject, score, percentage
+      FROM grades
+      ORDER BY CAST(percentage AS FLOAT) DESC
+      LIMIT 10
+    `);
+    
+    // Get low performers (below 40%)
+    const lowResult = await pool.query(`
+      SELECT display_name, subject, score, percentage
+      FROM grades
+      WHERE CAST(percentage AS FLOAT) < 40
+      ORDER BY CAST(percentage AS FLOAT) ASC
+      LIMIT 10
+    `);
+    
+    res.json({
+      success: true,
+      analytics: {
+        totalStudents,
+        totalExams,
+        avgScore: avgScore.toFixed(1),
+        passRate: passRate.toFixed(1),
+        subjectStats,
+        distribution,
+        topPerformers: topResult.rows,
+        lowPerformers: lowResult.rows
+      }
+    });
+  } catch (error) {
+    console.error('Get analytics error:', error);
+    res.json({ success: false, message: error.message });
+  }
+});
+
 module.exports = router;

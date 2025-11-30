@@ -11,6 +11,55 @@ let questionIds = [];
 
 const API_BASE = '/api';
 
+// Session Resume Feature - Save exam state to localStorage
+function saveExamState() {
+  if (!session.token || !currentSubject) return;
+  
+  const examState = {
+    token: session.token,
+    username: session.username,
+    subject: currentSubject,
+    answers: answers,
+    currentIndex: currentIndex,
+    currentTotal: currentTotal,
+    timeLeft: timeLeft,
+    questionIds: questionIds,
+    markedForReview: markedForReview,
+    visitedQuestions: visitedQuestions,
+    savedAt: Date.now()
+  };
+  
+  localStorage.setItem('examState_' + session.username, JSON.stringify(examState));
+}
+
+function loadExamState() {
+  if (!session.username) return null;
+  
+  try {
+    const saved = localStorage.getItem('examState_' + session.username);
+    if (!saved) return null;
+    
+    const state = JSON.parse(saved);
+    
+    // Check if state is less than 2 hours old
+    if (Date.now() - state.savedAt > 2 * 60 * 60 * 1000) {
+      clearExamState();
+      return null;
+    }
+    
+    return state;
+  } catch (e) {
+    console.error('Error loading exam state:', e);
+    return null;
+  }
+}
+
+function clearExamState() {
+  if (session.username) {
+    localStorage.removeItem('examState_' + session.username);
+  }
+}
+
 async function apiCall(endpoint, data = {}) {
   try {
     const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -47,6 +96,7 @@ document.getElementById('login-form').addEventListener('submit', async function(
     
     if (res && res.success) {
       session = res;
+      session.username = u.toLowerCase().trim();
       document.getElementById('login-error').style.display = 'none';
       document.getElementById('login-error').innerText = "";
       if (res.isAdmin) {
@@ -54,6 +104,14 @@ document.getElementById('login-form').addEventListener('submit', async function(
       } else {
         showPanel('studentPanel');
         document.getElementById('stuInfo').innerText = res.username || '';
+        
+        // Check for saved exam state and offer to resume
+        const savedState = loadExamState();
+        if (savedState && savedState.subject && savedState.timeLeft > 0) {
+          if (confirm(`You have a saved exam session for ${savedState.subject} with ${Math.floor(savedState.timeLeft/60)} minutes remaining.\n\nDo you want to resume?`)) {
+            resumeExam(savedState);
+          }
+        }
       }
     } else {
       document.getElementById('login-error').style.display = 'block';
@@ -565,16 +623,156 @@ document.getElementById('exportCSVBtn').onclick = async function() {
   }
 };
 
+document.getElementById('loadAnalyticsBtn').onclick = async function() {
+  try {
+    this.disabled = true;
+    this.querySelector('span:last-child').textContent = 'Loading...';
+    
+    const res = await apiCall('/admin/get-analytics', {
+      token: session.token
+    });
+    
+    if (res.success) {
+      const data = res.analytics;
+      
+      // Show analytics container
+      document.getElementById('analyticsContainer').classList.remove('hidden');
+      
+      // Update summary cards
+      document.getElementById('totalStudents').textContent = data.totalStudents;
+      document.getElementById('totalExams').textContent = data.totalExams;
+      document.getElementById('avgScore').textContent = data.avgScore + '%';
+      document.getElementById('passRate').textContent = data.passRate + '%';
+      
+      // Build subject chart
+      let subjectHtml = '';
+      const subjects = ['English', 'Mathematics', 'EVS'];
+      subjects.forEach(subject => {
+        const stats = data.subjectStats[subject] || { avgPercentage: 0, count: 0 };
+        const percentage = Math.round(stats.avgPercentage);
+        subjectHtml += `
+          <div class="chart-bar-item">
+            <div class="chart-bar-label">${subject}</div>
+            <div class="chart-bar-track">
+              <div class="chart-bar-fill ${subject.toLowerCase()}" style="width: ${percentage}%">
+                ${percentage > 10 ? percentage + '%' : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      document.getElementById('subjectChart').innerHTML = subjectHtml;
+      
+      // Build distribution chart
+      const maxCount = Math.max(...Object.values(data.distribution), 1);
+      let distHtml = '';
+      const ranges = ['0-20', '21-40', '41-60', '61-80', '81-100'];
+      const rangeLabels = ['0-20%', '21-40%', '41-60%', '61-80%', '81-100%'];
+      ranges.forEach((range, idx) => {
+        const count = data.distribution[range] || 0;
+        const height = Math.max((count / maxCount) * 120, count > 0 ? 20 : 5);
+        distHtml += `
+          <div class="distribution-bar">
+            <div class="distribution-bar-count">${count}</div>
+            <div class="distribution-bar-fill dist-${range.replace('-', '-')}" style="height: ${height}px"></div>
+            <div class="distribution-bar-label">${rangeLabels[idx]}</div>
+          </div>
+        `;
+      });
+      document.getElementById('scoreDistribution').innerHTML = distHtml;
+      
+      // Build top performers table
+      let topHtml = '';
+      (data.topPerformers || []).forEach((p, idx) => {
+        const rankClass = idx < 3 ? `rank-${idx + 1}` : '';
+        const rankIcon = idx === 0 ? '🥇' : (idx === 1 ? '🥈' : (idx === 2 ? '🥉' : (idx + 1)));
+        const scoreClass = parseFloat(p.percentage) >= 80 ? 'score-high' : (parseFloat(p.percentage) >= 60 ? 'score-medium' : 'score-low');
+        topHtml += `
+          <tr>
+            <td class="${rankClass}">${rankIcon}</td>
+            <td>${p.display_name}</td>
+            <td>${p.subject}</td>
+            <td>${p.score}</td>
+            <td><span class="score-badge ${scoreClass}">${p.percentage}%</span></td>
+          </tr>
+        `;
+      });
+      document.getElementById('topPerformersBody').innerHTML = topHtml || '<tr><td colspan="5" style="text-align:center;color:#666;">No data yet</td></tr>';
+      
+      // Build low performers table
+      let lowHtml = '';
+      (data.lowPerformers || []).forEach(p => {
+        lowHtml += `
+          <tr>
+            <td>${p.display_name}</td>
+            <td>${p.subject}</td>
+            <td>${p.score}</td>
+            <td><span class="score-badge score-low">${p.percentage}%</span></td>
+          </tr>
+        `;
+      });
+      document.getElementById('lowPerformersBody').innerHTML = lowHtml || '<tr><td colspan="4" style="text-align:center;color:#2e7d32;">All students passed! 🎉</td></tr>';
+      
+    } else {
+      alert('Error loading analytics: ' + (res.message || 'Unknown error'));
+    }
+    
+    this.disabled = false;
+    this.querySelector('span:last-child').textContent = 'Load Analytics';
+  } catch (e) {
+    alert('Error: ' + e.message);
+    this.disabled = false;
+    this.querySelector('span:last-child').textContent = 'Load Analytics';
+  }
+};
+
 document.getElementById('startExamBtn').onclick = startExamForSubject;
 document.getElementById('prevBtn').onclick = prevQ;
 document.getElementById('nextBtn').onclick = nextQ;
 document.getElementById('submitBtn').onclick = handleEndExam;
 document.getElementById('markReviewBtn').onclick = toggleMarkReview;
 
+async function resumeExam(savedState) {
+  // Restore state from saved session
+  currentSubject = savedState.subject;
+  answers = savedState.answers || {};
+  currentIndex = savedState.currentIndex || 0;
+  currentTotal = savedState.currentTotal || 0;
+  timeLeft = savedState.timeLeft || 75 * 60;
+  questionIds = savedState.questionIds || [];
+  markedForReview = savedState.markedForReview || {};
+  visitedQuestions = savedState.visitedQuestions || {};
+  
+  document.getElementById('thankYou').classList.add('hidden');
+  document.getElementById('preExamSection').classList.add('hidden');
+  document.getElementById('studentLogoutBtn').classList.add('hidden');
+  document.getElementById('examCard').classList.remove('hidden');
+  document.getElementById('classInfoBanner').style.display = "inline-block";
+  document.getElementById('classInfoBanner').innerHTML =
+    `Class V — ${currentSubject} | Time: ${Math.floor(timeLeft/60)} mins remaining`;
+  
+  startTimer();
+  initNavigator(currentTotal);
+  
+  // Go to the question they were on
+  const q = await apiCall('/questions/get-question', {
+    token: session.token,
+    subject: currentSubject,
+    index: currentIndex
+  });
+  
+  if (q && !q.error) {
+    renderQuestion(q, currentIndex);
+  }
+}
+
 async function startExamForSubject() {
   let cls = document.getElementById('classSelect').value;
   if (!cls) return alert("Please select class");
 
+  // Clear any previous state for fresh start
+  clearExamState();
+  
   answers = {};
   currentTotal = 0;
   visitedQuestions = {};
@@ -624,6 +822,9 @@ async function startExamForSubject() {
     currentTotal = q.total || 0;
     initNavigator(currentTotal);
     renderQuestion(q, 0);
+    
+    // Save initial state
+    saveExamState();
   } catch (e) {
     alert("Could not get active subject: " + (e.message || e));
   }
@@ -684,6 +885,7 @@ function toggleMarkReview() {
   markedForReview[qid] = !markedForReview[qid];
   updateMarkReviewButton();
   updateNavigator();
+  saveExamState(); // Save when marking for review
 }
 
 function updateMarkReviewButton() {
@@ -704,10 +906,16 @@ function startTimer() {
   timerInterval = setInterval(function() {
     if (--timeLeft < 0) {
       clearInterval(timerInterval);
+      clearExamState();
       handleEndExam();
       return;
     }
     updateTimerUI();
+    
+    // Save state every 10 seconds
+    if (timeLeft % 10 === 0) {
+      saveExamState();
+    }
   }, 1000);
 }
 
@@ -796,6 +1004,7 @@ function renderQuestion(q, i) {
       answers[q.id] = this.value;
       updateStatsDisplay();
       updateNavigator();
+      saveExamState(); // Save after each answer
     }
   });
   
@@ -877,6 +1086,9 @@ async function handleEndExam() {
       document.getElementById('submitBtn').disabled = false;
       return;
     }
+    
+    // Clear saved exam state on successful submission
+    clearExamState();
     
     document.getElementById('examCard').classList.add('hidden');
     document.getElementById('thankYou').classList.remove('hidden');

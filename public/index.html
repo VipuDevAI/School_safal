@@ -265,18 +265,90 @@ student1,Student Name,test123" style="height: 80px;"></textarea>
         </div>
       </div>
 
-      <div class="admin-section">
-        <h4>Reports & Analytics</h4>
+      <div class="admin-section analytics-section">
+        <h4>📊 Reports & Analytics Dashboard</h4>
         <div class="admin-btn-group">
-          <button type="button" id="viewReportBtn" class="admin-btn admin-btn-primary">
+          <button type="button" id="loadAnalyticsBtn" class="admin-btn admin-btn-primary">
             <span class="btn-icon">📈</span>
+            <span>Load Analytics</span>
+          </button>
+          <button type="button" id="viewReportBtn" class="admin-btn admin-btn-success">
+            <span class="btn-icon">📋</span>
             <span>View Summary</span>
           </button>
-          <button type="button" id="exportCSVBtn" class="admin-btn admin-btn-success">
+          <button type="button" id="exportCSVBtn" class="admin-btn admin-btn-warning">
             <span class="btn-icon">📥</span>
             <span>Export CSV</span>
           </button>
         </div>
+        
+        <div id="analyticsContainer" class="analytics-container hidden">
+          <div class="analytics-cards">
+            <div class="analytics-card card-total">
+              <div class="card-icon">👨‍🎓</div>
+              <div class="card-value" id="totalStudents">0</div>
+              <div class="card-label">Total Students</div>
+            </div>
+            <div class="analytics-card card-exams">
+              <div class="card-icon">📝</div>
+              <div class="card-value" id="totalExams">0</div>
+              <div class="card-label">Exams Taken</div>
+            </div>
+            <div class="analytics-card card-avg">
+              <div class="card-icon">📊</div>
+              <div class="card-value" id="avgScore">0%</div>
+              <div class="card-label">Average Score</div>
+            </div>
+            <div class="analytics-card card-pass">
+              <div class="card-icon">✅</div>
+              <div class="card-value" id="passRate">0%</div>
+              <div class="card-label">Pass Rate (≥40%)</div>
+            </div>
+          </div>
+          
+          <div class="analytics-charts">
+            <div class="chart-container">
+              <h5>📚 Subject-wise Performance</h5>
+              <div id="subjectChart" class="chart-bars"></div>
+            </div>
+            <div class="chart-container">
+              <h5>📈 Score Distribution</h5>
+              <div id="scoreDistribution" class="distribution-chart"></div>
+            </div>
+          </div>
+          
+          <div class="analytics-table">
+            <h5>🏆 Top Performers</h5>
+            <table id="topPerformersTable" class="data-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Student</th>
+                  <th>Subject</th>
+                  <th>Score</th>
+                  <th>Percentage</th>
+                </tr>
+              </thead>
+              <tbody id="topPerformersBody"></tbody>
+            </table>
+          </div>
+          
+          <div class="analytics-table">
+            <h5>⚠️ Students Needing Attention (Below 40%)</h5>
+            <table id="lowPerformersTable" class="data-table">
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Subject</th>
+                  <th>Score</th>
+                  <th>Percentage</th>
+                </tr>
+              </thead>
+              <tbody id="lowPerformersBody"></tbody>
+            </table>
+          </div>
+        </div>
+        
         <div id="summaryArea" class="summary-area"></div>
       </div>
     </div>

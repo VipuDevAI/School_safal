@@ -11,6 +11,30 @@ let questionIds = [];
 
 const API_BASE = '/api';
 
+// Format fractions properly for Grade 5 students (e.g., 3/4 becomes stacked fraction)
+function formatFractions(text) {
+  if (!text) return text;
+  
+  // Convert mixed numbers like "20 3/4" to proper display
+  text = text.replace(/(\d+)\s+(\d+)\s*\/\s*(\d+)/g, function(match, whole, num, den) {
+    return `<span class="mixed-number"><span class="mixed-whole">${whole}</span><span class="fraction"><span class="fraction-num">${num}</span><span class="fraction-den">${den}</span></span></span>`;
+  });
+  
+  // Convert simple fractions like "3/4" or "1/2" (but not dates like 12/25)
+  // Only convert if numerator is smaller than denominator OR common fractions
+  text = text.replace(/(?<!\d)(\d{1,2})\s*\/\s*(\d{1,2})(?!\d)/g, function(match, num, den) {
+    const n = parseInt(num);
+    const d = parseInt(den);
+    // Only format if it looks like a fraction (denominator reasonable for math)
+    if (d <= 100 && (n < d || (n === 1 && d <= 20) || (d === 2 || d === 3 || d === 4 || d === 5 || d === 6 || d === 8 || d === 10 || d === 12 || d === 20))) {
+      return `<span class="fraction"><span class="fraction-num">${num}</span><span class="fraction-den">${den}</span></span>`;
+    }
+    return match; // Keep as-is if not a typical fraction
+  });
+  
+  return text;
+}
+
 // Session Resume Feature - Save exam state to localStorage
 function saveExamState() {
   if (!session.token || !currentSubject) return;
@@ -956,18 +980,18 @@ function renderQuestion(q, i) {
   
   if (q.instructionText) {
     html += `<div class="instruction-box">
-      <div class="instruction-text">${q.instructionText}</div>
+      <div class="instruction-text">${formatFractions(q.instructionText)}</div>
     </div>`;
   }
   
   if (q.passageText) {
     html += `<div class="passage-box">
       <div class="passage-title">Read the following:</div>
-      <div class="passage-content">${q.passageText.replace(/\n/g, '<br>')}</div>
+      <div class="passage-content">${formatFractions(q.passageText.replace(/\n/g, '<br>'))}</div>
     </div>`;
   }
   
-  html += `<div class="question-main">${q.question || ''}</div>`;
+  html += `<div class="question-main">${formatFractions(q.question || '')}</div>`;
   
   if (q.imageUrl) {
     html += `<div class="question-image-container">
@@ -980,7 +1004,7 @@ function renderQuestion(q, i) {
   
   optionLabels.forEach(function(opt, j) {
     if (q.options && q.options[j]) {
-      let optContent = q.options[j];
+      let optContent = formatFractions(q.options[j]);
       
       if (optionImages[j]) {
         html += `<label class="option-label option-with-image">

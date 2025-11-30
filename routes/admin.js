@@ -228,14 +228,28 @@ router.post('/upload-word-questions', requireAdmin, async (req, res) => {
     let currentPassage = null;
     let currentPassageId = null;
     let collectingPassage = false;
+    let pendingImage = null; // Track standalone images to attach to next question
     
     for (let i = 0; i < rawBlocks.length; i++) {
       const block = rawBlocks[i];
       const plainText = block.replace(/<[^>]+>/g, '').trim();
-      const imgMatch = block.match(/<img[^>]+src="([^"]+)"[^>]*>/i);
+      // Extract ALL images from block (there might be multiple)
+      const imgMatches = block.match(/<img[^>]+src="([^"]+)"[^>]*>/gi) || [];
+      const imgSrcs = imgMatches.map(m => {
+        const srcMatch = m.match(/src="([^"]+)"/i);
+        return srcMatch ? srcMatch[1] : null;
+      }).filter(s => s);
       
-      // Skip empty blocks (but keep image-only blocks)
-      if (!plainText && !imgMatch) continue;
+      const firstImage = imgSrcs[0] || null;
+      
+      // If this block is ONLY an image (no text), save it to attach to next question
+      if (!plainText && firstImage) {
+        pendingImage = firstImage;
+        continue;
+      }
+      
+      // Skip empty blocks
+      if (!plainText && !firstImage) continue;
       
       // Check for INSTRUCTION marker (## prefix)
       if (plainText.startsWith('##')) {
@@ -312,14 +326,23 @@ router.post('/upload-word-questions', requireAdmin, async (req, res) => {
         collectingPassage = false;
       }
       
+      // Use pending image (from standalone image block before this text) if no image in current block
+      const itemImage = firstImage || pendingImage;
+      
       contentItems.push({
         text: plainText,
         html: block,
-        image: imgMatch ? imgMatch[1] : null,
+        image: itemImage,
+        allImages: imgSrcs, // Store all images for option images
         passageText: currentPassage ? currentPassage.trim() : null,
         passageId: currentPassageId,
         instructionText: currentInstruction
       });
+      
+      // Clear pending image after attaching to a content item
+      if (pendingImage && !firstImage) {
+        pendingImage = null;
+      }
     }
     
     // IMPROVED PARSER: Use numbered questions as delimiters
@@ -450,7 +473,23 @@ router.post('/upload-word-questions', requireAdmin, async (req, res) => {
         let questionText = questionItem.text.replace(/^(?:Q?\s*)?\d+[\.\)]\s?/i, '').trim();
         // Ensure blanks are preserved (convert multiple underscores to proper blank display)
         questionText = questionText.replace(/_+/g, match => match.length >= 3 ? '_______' : match);
-        let questionImage = questionItem.image || '';
+        
+        // IMPROVED: Collect ALL images from entire question block (question to answer)
+        // This catches standalone images between question text and options
+        let allBlockImages = [];
+        for (let bi = 0; bi < answerIdx; bi++) {
+          if (qItems[bi].image) {
+            allBlockImages.push(qItems[bi].image);
+          }
+          // Also check allImages array for multiple images in one block
+          if (qItems[bi].allImages && qItems[bi].allImages.length > 0) {
+            allBlockImages = allBlockImages.concat(qItems[bi].allImages);
+          }
+        }
+        // Remove duplicates
+        allBlockImages = [...new Set(allBlockImages)];
+        
+        let questionImage = questionItem.image || (allBlockImages.length > 0 ? allBlockImages[0] : '');
         
         // Items before Answer line (excluding question) are options
         // Last 4 items before Answer are the options
@@ -479,7 +518,7 @@ router.post('/upload-word-questions', requireAdmin, async (req, res) => {
         if (!optionC && optCImg) optionC = '[Image]';
         if (!optionD && optDImg) optionD = '[Image]';
         
-        // Get images - prioritize question image, then option images
+        // Get images - use collected block images first, then option images
         const imageUrl = questionImage || optAImg || optBImg || optCImg || optDImg || '';
         
         // Get passage and instruction info

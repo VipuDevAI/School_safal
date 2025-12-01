@@ -188,7 +188,7 @@ h4 {
 }
 
 .exam-right-sidebar {
-  width: 180px;
+  width: 200px;
   flex-shrink: 0;
 }
 
@@ -212,10 +212,9 @@ h4 {
 
 .nav-dots {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 6px;
-  max-height: 180px;
-  overflow-y: auto;
+  grid-template-columns: repeat(5, 28px);
+  gap: 4px;
+  justify-content: center;
 }
 
 .nav-dot {
